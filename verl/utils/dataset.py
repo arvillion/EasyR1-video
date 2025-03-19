@@ -28,6 +28,8 @@ from transformers import PreTrainedTokenizer, ProcessorMixin
 
 from ..models.transformers.qwen2_vl import get_rope_index
 from . import torch_functional as VF
+from qwen_vl_utils import fetch_video
+
 
 
 def collate_fn(features: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -82,8 +84,10 @@ class RLHFDataset(Dataset):
         prompt_key: str = "prompt",
         answer_key: str = "answer",
         image_key: str = "images",
+        video_key: str = "videos",
         max_prompt_length: int = 1024,
         truncation: str = "error",
+        fps: float = 2,
         system_prompt: str = None,
         max_pixels: int = None,
         min_pixels: int = None,
@@ -93,8 +97,10 @@ class RLHFDataset(Dataset):
         self.prompt_key = prompt_key
         self.answer_key = answer_key
         self.image_key = image_key
+        self.video_key = video_key
         self.max_prompt_length = max_prompt_length
         self.truncation = truncation
+        self.fps = fps
         self.system_prompt = system_prompt
         self.max_pixels = max_pixels
         self.min_pixels = min_pixels
@@ -139,6 +145,38 @@ class RLHFDataset(Dataset):
                 image_grid_thw=model_inputs["image_grid_thw"],
                 attention_mask=attention_mask,
             )  # (3, seq_length)
+        elif self.video_key in row_dict:
+            prompt = prompt.replace("<video>", "<|vision_start|><|video_pad|><|vision_end|>")
+            # TODO: check
+            row_dict["multi_modal_data"] = {
+                "video": [fetch_video(
+                    ele={
+                    "video": video,
+                    "max_pixels": self.max_pixels,
+                    "min_pixels": self.min_pixels,
+                    # "total_pixels": None,
+                    # "resized_height": None,
+                    # "resized_width": None,
+                    }, 
+                    # image_factor=None, 
+                    return_video_sample_fps=False
+                ) for video in row_dict.pop(self.video_key)]
+            }
+            videos_kwargs = {"fps": self.fps}
+            model_inputs = self.processor(images=None, text=prompt, videos=row_dict["multi_modal_data"]["video"], return_tensors="pt", videos_kwargs=videos_kwargs)
+            input_ids = model_inputs.pop("input_ids")[0]
+            attention_mask = model_inputs.pop("attention_mask")[0]
+            
+            row_dict["multi_modal_inputs"] = dict(model_inputs)
+            row_dict["multi_modal_inputs"].pop("second_per_grid_ts")
+            
+            position_ids = get_rope_index(
+                self.processor,
+                input_ids=input_ids,
+                video_grid_thw=model_inputs["video_grid_thw"],
+                second_per_grid_ts=model_inputs["second_per_grid_ts"],
+                attention_mask=attention_mask,
+            )
         else:
             model_inputs = self.tokenizer([prompt], add_special_tokens=False, return_tensors="pt")
             input_ids = model_inputs.pop("input_ids")[0]

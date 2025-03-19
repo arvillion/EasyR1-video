@@ -299,11 +299,13 @@ class RayPPOTrainer:
             prompt_key=self.config.data.prompt_key,
             answer_key=self.config.data.answer_key,
             image_key=self.config.data.image_key,
+            video_key=self.config.data.video_key,
             max_prompt_length=self.config.data.max_prompt_length,
             truncation="right",
             system_prompt=self.config.data.system_prompt,
             min_pixels=self.config.data.min_pixels,
             max_pixels=self.config.data.max_pixels,
+            fps=self.config.data.fps,
         )
         # use sampler for better ckpt resume
         if self.config.data.shuffle:
@@ -330,11 +332,13 @@ class RayPPOTrainer:
             prompt_key=self.config.data.prompt_key,
             answer_key=self.config.data.answer_key,
             image_key=self.config.data.image_key,
+            video_key=self.config.data.video_key,
             max_prompt_length=self.config.data.max_prompt_length,
             truncation="right",
             system_prompt=self.config.data.system_prompt,
             min_pixels=self.config.data.min_pixels,
             max_pixels=self.config.data.max_pixels,
+            fps=self.config.data.fps,
         )
         self.val_dataloader = StatefulDataLoader(
             dataset=self.val_dataset,

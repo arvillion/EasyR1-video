@@ -38,6 +38,7 @@ class DataConfig:
     prompt_key: str = "prompt"
     answer_key: str = "answer"
     image_key: str = "images"
+    video_key: str = "videos"
     max_prompt_length: int = 512
     max_response_length: int = 512
     rollout_batch_size: int = 512
@@ -46,6 +47,7 @@ class DataConfig:
     seed: int = 1
     max_pixels: int = 4194304
     min_pixels: int = 262144
+    fps: float = 2.0
 
 
 @dataclass
