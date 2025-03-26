@@ -1,0 +1,96 @@
+data:
+  train_files: /nvme-ssd/z/EasyR1-video/examples/data_preprocess/RL_120s_4202_8000.parquet
+  val_files: /nvme-ssd/z/EasyR1-video/examples/data_preprocess/RL_120s_4202_8000.parquet
+  prompt_key: problem
+  answer_key: answer
+  video_key: videos
+  max_prompt_length: 15000 
+  max_response_length: 2000 
+  rollout_batch_size: 16
+  shuffle: true
+  seed: 1
+  max_pixels: 50176 # 224*224=50176
+  min_pixels: 3136
+  fps: 1.5
+  system_prompt: >
+    You are an AI assistant that identifies visual events in videos based on textual descriptions. 
+    Given a sentence describing an event, determine its starting and ending times in the video. 
+    Respond in the format: 'The event happens in the start time - end time'. 
+    For example, 'The event "person turns a light on" happens in the 24.3 - 30.4 seconds.' 
+    Await the input sentence and return the corresponding start and end times. 
+
+algorithm:
+  adv_estimator: grpo
+  kl_coef: 0.0 # not used  
+
+worker:
+  # global_batch_size would be multiplied by rollout.n
+  actor:
+    # auto computes gradient_accumulation_steps
+    global_batch_size: 8 # =n_devices * micro_batch_size_per_device_for_update * gradient_accumulation_steps
+    micro_batch_size_per_device_for_update: 1
+    micro_batch_size_per_device_for_experience: 16 # used in compute log probs given input_ids 
+    max_grad_norm: 1.0
+    use_kl_loss: true
+    kl_loss_coef: 1.0e-2
+    kl_loss_type: low_var_kl
+    padding_free: true
+    ulysses_sequence_parallel_size: 1
+    model:
+      model_path: Qwen/Qwen2.5-3B-Instruct
+      enable_gradient_checkpointing: true
+      trust_remote_code: false
+      freeze_vision_tower: false
+    optim:
+      lr: 1.0e-6
+      weight_decay: 1.0e-2
+      lr_warmup_ratio: 0.0
+    fsdp:
+      enable_full_shard: true
+      enable_cpu_offload: false
+      enable_rank0_init: true
+    offload:
+      offload_params: true
+      offload_optimizer: true
+
+  rollout:
+    max_num_batched_tokens: 20000 # should be greater than max_prompt_length+max_response_length
+    temperature: 1.0
+    n: 4 # num_generations
+    gpu_memory_utilization: 0.5
+    enforce_eager: false
+    enable_chunked_prefill: false
+    tensor_parallel_size: 1
+    limit_images: 0
+    val_override_config:
+      temperature: 0.5
+      n: 1
+
+  ref:
+    fsdp:
+      enable_full_shard: true
+      enable_cpu_offload: true
+      enable_rank0_init: true
+    offload:
+      offload_params: false
+
+  reward:
+    reward_type: function
+    compute_score: grounding_iou_score
+
+trainer:
+  total_episodes: 1
+  logger: ["console", "wandb"]
+  project_name: easy_r1
+  experiment_name: qwen2_5_3b_grounding_anet
+  n_gpus_per_node: 8
+  nnodes: 1
+  val_freq: 10000000 # no validation
+  val_before_train: false # no validation
+  val_only: false
+  val_generations_to_log: 1
+  save_freq: 25
+  remove_previous_ckpt: false
+  remove_ckpt_after_load: false
+  save_checkpoint_path: /hhd2/zzk/r1
+  load_checkpoint_path: null
