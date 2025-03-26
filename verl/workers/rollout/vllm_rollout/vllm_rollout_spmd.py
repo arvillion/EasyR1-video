@@ -18,6 +18,7 @@ When working with FSDP:
 - Utilize state_dict from the FSDP to synchronize the weights among tp ranks in vLLM
 """
 
+import os
 from contextlib import contextmanager
 from typing import Any, List, Union
 
@@ -52,6 +53,7 @@ class vLLMRollout(BaseRollout):
             tokenizer: the task/model tokenizer
         """
         super().__init__()
+        self.rank = int(os.getenv("RANK", "0"))
         self.config = config
         self.pad_token_id = tokenizer.pad_token_id
         if config.tensor_parallel_size > torch.distributed.get_world_size():
@@ -79,6 +81,7 @@ class vLLMRollout(BaseRollout):
             enable_sleep_mode=True,
             distributed_executor_backend="external_launcher",
             disable_custom_all_reduce=True,
+            disable_mm_preprocessor_cache=True,
             disable_log_stats=config.disable_log_stats,
             enable_chunked_prefill=config.enable_chunked_prefill,
             **vllm_init_kwargs,
@@ -139,7 +142,7 @@ class vLLMRollout(BaseRollout):
         # users can customize different sampling_params at different run
         with self.update_sampling_params(**prompts.meta_info):
             completions: List[RequestOutput] = self.inference_engine.generate(
-                prompts=vllm_inputs, sampling_params=self.sampling_params
+                prompts=vllm_inputs, sampling_params=self.sampling_params, use_tqdm=(self.rank == 0)
             )
             response_ids = [output.token_ids for completion in completions for output in completion.outputs]
             response_ids = VF.pad_2d_list_to_length(

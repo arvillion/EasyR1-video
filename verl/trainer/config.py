@@ -55,9 +55,10 @@ class AlgorithmConfig:
     gamma: float = 1.0
     lam: float = 1.0
     adv_estimator: str = "grpo"
+    use_kl_loss: bool = False
     kl_penalty: str = "kl"
-    kl_type: str = "fixed"
     kl_coef: float = 1e-3
+    kl_type: str = "fixed"
     kl_horizon: float = 0.0
     kl_target: float = 0.0
 
@@ -75,10 +76,9 @@ class TrainerConfig:
     val_freq: int = -1
     val_before_train: bool = True
     val_only: bool = False
-    val_generations_to_log: int = 1
+    val_generations_to_log: int = 0
     save_freq: int = -1
-    remove_previous_ckpt: bool = False
-    remove_ckpt_after_load: bool = False
+    save_limit: int = -1
     save_checkpoint_path: Optional[str] = None
     load_checkpoint_path: Optional[str] = None
 
@@ -97,6 +97,9 @@ class PPOConfig:
     def post_init(self):
         self.worker.rollout.prompt_length = self.data.max_prompt_length
         self.worker.rollout.response_length = self.data.max_response_length
+        self.worker.actor.use_kl_loss = self.algorithm.use_kl_loss
+        self.worker.actor.kl_penalty = self.algorithm.kl_penalty
+        self.worker.actor.kl_coef = self.algorithm.kl_coef
 
     def deep_post_init(self):
         recursive_post_init(self)
